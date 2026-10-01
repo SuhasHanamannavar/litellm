@@ -18,17 +18,12 @@ const MIGRATIONS: [&str; 9] = [
     include_str!("../migrations/0009_spend_received.sql"),
 ];
 
-pub fn schema_statements(
-    database: &str,
-    trace_retention_days: u32,
-    spend_log_retention_days: u32,
-) -> Result<Vec<String>, Error> {
+pub fn schema_statements(database: &str, retention_days: u32) -> Result<Vec<String>, Error> {
     if database.is_empty()
         || !database
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || c == b'_')
-        || trace_retention_days == 0
-        || spend_log_retention_days == 0
+        || retention_days == 0
     {
         return Err(Error::InvalidSchema);
     }
@@ -37,11 +32,7 @@ pub fn schema_statements(
         std::iter::once(format!("CREATE DATABASE IF NOT EXISTS {database}"))
             .chain(MIGRATIONS.iter().map(|sql| {
                 sql.replace("{database}", &database)
-                    .replace("{trace_retention_days}", &trace_retention_days.to_string())
-                    .replace(
-                        "{spend_log_retention_days}",
-                        &spend_log_retention_days.to_string(),
-                    )
+                    .replace("{retention_days}", &retention_days.to_string())
             }))
             .collect(),
     )
@@ -51,15 +42,13 @@ pub async fn ensure_schema(
     client: &Client,
     connection: &Connection,
     database: &str,
-    trace_retention_days: u32,
-    spend_log_retention_days: u32,
+    retention_days: u32,
 ) -> Result<(), Error> {
     ensure_schema_with_timeout(
         client,
         connection,
         database,
-        trace_retention_days,
-        spend_log_retention_days,
+        retention_days,
         SCHEMA_REQUEST_TIMEOUT,
     )
     .await
@@ -69,11 +58,10 @@ async fn ensure_schema_with_timeout(
     client: &Client,
     connection: &Connection,
     database: &str,
-    trace_retention_days: u32,
-    spend_log_retention_days: u32,
+    retention_days: u32,
     request_timeout: Duration,
 ) -> Result<(), Error> {
-    for statement in schema_statements(database, trace_retention_days, spend_log_retention_days)? {
+    for statement in schema_statements(database, retention_days)? {
         let response = client
             .post(connection.url().clone())
             .timeout(request_timeout)

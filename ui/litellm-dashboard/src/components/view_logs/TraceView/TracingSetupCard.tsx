@@ -152,9 +152,10 @@ export const codingAgentPrompt = (proxyUrl: string, guide: Pick<FrameworkGuide, 
 export const PROXY_CONFIG_SNIPPET = [
   "general_settings:",
   "  tracing:",
-  "    store: clickhouse",
-  "",
-  "# env: CLICKHOUSE_URL (writer) and CLICKHOUSE_READER_URL (read-only user)",
+  "    store:",
+  "      type: clickhouse",
+  "      url: os.environ/CLICKHOUSE_URL",
+  "      retention_days: 14",
 ].join("\n");
 
 function CodeBlock({ code, tabs, wrap = false }: { code: string; tabs?: React.ReactNode; wrap?: boolean }) {

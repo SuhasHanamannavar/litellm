@@ -1,3 +1,4 @@
+mod config;
 mod error;
 mod insert;
 mod otlp;
@@ -5,6 +6,7 @@ mod schema;
 mod shared;
 mod sql;
 
+pub use config::Config;
 pub use error::DecodeError;
 pub use insert::{InsertRow, InsertTable, encode_rows, insert_rows, insert_shared_rows};
 pub use litellm_storage_clickhouse::{Connection, Error, Parameter, execute_read};
