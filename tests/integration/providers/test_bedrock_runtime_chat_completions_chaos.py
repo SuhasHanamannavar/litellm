@@ -175,7 +175,13 @@ def _assert_each_success_landed_once(rows: list[dict[str, JsonValue]], served: t
         assert len(owned) == 1, (item.call, owned, success_ids)
 
 
-async def _send(client: httpx.AsyncClient, key: str, model: str, call: _Call) -> _Served:
+async def _send(
+    client: httpx.AsyncClient,
+    key: str,
+    model: str,
+    call: _Call,
+    completed: Synchronized[int] | None = None,
+) -> _Served:
     async with client.stream(
         "POST",
         _path(call.endpoint),
@@ -183,17 +189,27 @@ async def _send(client: httpx.AsyncClient, key: str, model: str, call: _Call) ->
         headers={"Authorization": f"Bearer {key}", "anthropic-version": "2023-06-01"},
     ) as response:
         raw: Final = await response.aread()
+    if completed is not None:
+        with completed.get_lock():
+            completed.value += 1
     return _Served(
         call=call, status=response.status_code, text=raw.decode(), call_id=response.headers.get("x-litellm-call-id")
     )
 
 
 async def _burst(
-    base_url: str, key: str, model: str, calls: tuple[_Call, ...], *, tolerate_transport_errors: bool = False
+    base_url: str,
+    key: str,
+    model: str,
+    calls: tuple[_Call, ...],
+    *,
+    tolerate_transport_errors: bool = False,
+    completed: Synchronized[int] | None = None,
 ) -> tuple[_Served, ...]:
     async with httpx.AsyncClient(base_url=base_url, timeout=60, trust_env=False) as client:
         results: Final = await asyncio.gather(
-            *(_send(client, key, model, call) for call in calls), return_exceptions=tolerate_transport_errors
+            *(_send(client, key, model, call, completed) for call in calls),
+            return_exceptions=tolerate_transport_errors,
         )
     for result in results:
         assert not isinstance(result, BaseException) or isinstance(result, httpx.TransportError), repr(result)
@@ -260,11 +276,15 @@ async def test_peer_killed_mid_burst_fails_only_the_held_calls_and_a_restarted_p
     calls: Final = _calls(12, _ENDPOINTS, lambda index: index % 2 == 0)
     recovery: Final = _calls(6, _ENDPOINTS, lambda index: index % 2 == 1)
     port: Final = _free_port()
+    answered: Final = multiprocessing.Value("i", 0)
     with gateway.scenario() as scenario:
         model: Final = _deployment(scenario, f"http://127.0.0.1:{port}")
         with _child_peer(port, answer_first=6) as peer:
-            burst: Final = asyncio.create_task(_burst(str(gateway.client.base_url), gateway.key, model, calls))
+            burst: Final = asyncio.create_task(
+                _burst(str(gateway.client.base_url), gateway.key, model, calls, completed=answered)
+            )
             await asyncio.to_thread(eventually, lambda: peer.received.value, lambda count: count == 12, 60)
+            await asyncio.to_thread(eventually, lambda: answered.value, lambda count: count == 6, 60)
             peer.process.kill()
             peer.process.join(timeout=10)
             served: Final = await burst

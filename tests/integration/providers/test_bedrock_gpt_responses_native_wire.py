@@ -85,10 +85,11 @@ def test_openai_sdk_responses_request_is_served_by_the_native_responses_route(ga
         response: Final = raw.parse()
         assert response.output_text == answer(marker), raw.text
         assert response.usage is not None and (response.usage.input_tokens, response.usage.output_tokens) == (30, 5)
-        assert _issued_id(response.id).upstream == f"resp_upstream_{marker}", response.id
+        issued: Final = _issued_id(response.id)
+        assert issued.upstream == f"resp_upstream_{marker}", response.id
         request: Final = _native_request(wire)
         assert _body(request) == {"model": GPT, "input": _prompt(marker)}, request.body
-        assert _spend_row(response.id) == _success_row(model)
+        assert _spend_row(issued.issued) == _success_row(model)
 
 
 async def test_async_openai_sdk_responses_stream_is_served_by_the_native_responses_route(gateway: Gateway) -> None:

@@ -1,3 +1,4 @@
+import itertools
 import json
 import re
 import threading
@@ -263,14 +264,21 @@ def respond(request: Request, *, pause: float = 0.0) -> Reply:
 
 def serve_peer(port: int, received: Synchronized[int], answer_first: int) -> None:
     held: Final = threading.Event()
+    ordinals: Final = itertools.count(1)
+    assign: Final = threading.Lock()
 
     def respond_or_hold(request: Request) -> Reply:
+        with assign:
+            ordinal: Final = next(ordinals)
+        if ordinal > answer_first:
+            with received.get_lock():
+                received.value += 1
+            held.wait()
+            return respond(request)
+        reply: Final = respond(request)
         with received.get_lock():
             received.value += 1
-            ordinal: Final = received.value
-        if ordinal > answer_first:
-            held.wait()
-        return respond(request)
+        return reply
 
     with wire_server(respond_or_hold, port=port):
         threading.Event().wait()
