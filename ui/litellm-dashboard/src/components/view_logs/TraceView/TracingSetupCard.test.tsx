@@ -49,7 +49,8 @@ describe("TracingSetupCard", () => {
     const onCheck = vi.fn();
     render(<TracingSetupCard detail="Agent tracing is not enabled" onCheck={onCheck} />);
     expect(screen.getByRole("heading", { name: "Enable tracing" })).toBeVisible();
-    expect(screen.getByTestId("tracing-setup-card")).toHaveTextContent("store: clickhouse");
+    expect(screen.getByTestId("tracing-setup-card")).toHaveTextContent("type: clickhouse");
+    expect(screen.getByTestId("tracing-setup-card")).toHaveTextContent("url: os.environ/CLICKHOUSE_URL");
     expect(screen.queryByRole("combobox", { name: "Your agent framework" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Check setup" }));
     expect(onCheck).toHaveBeenCalledOnce();
