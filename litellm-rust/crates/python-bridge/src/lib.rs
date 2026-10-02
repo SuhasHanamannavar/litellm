@@ -46,6 +46,7 @@ mod _native {
     #[pymodule_export]
     use crate::routes::traces::{
         NativeTraceConfig, NativeTraceStorage, trace_decode_otlp, trace_encode_error,
+        trace_normalized_field_definitions,
     };
     #[cfg(feature = "huggingface")]
     #[pymodule_export]
@@ -115,6 +116,7 @@ mod tests {
                 "NativeTraceStorage",
                 "trace_decode_otlp",
                 "trace_encode_error",
+                "trace_normalized_field_definitions",
                 "TokenCounter",
                 "Tokenizer",
                 "gil_stats",
