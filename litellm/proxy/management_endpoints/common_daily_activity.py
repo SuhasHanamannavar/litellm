@@ -652,7 +652,7 @@ def _build_where_conditions(
     return where_conditions
 
 
-def _build_aggregated_where_clause(
+def build_aggregated_where_clause(
     *,
     entity_id_field: str,
     entity_id: str | list[str] | None,
@@ -760,7 +760,7 @@ def _build_aggregated_sql_query(
         start_date, end_date, timezone_offset_minutes, include_current_utc_day
     )
 
-    where_clause, sql_params = _build_aggregated_where_clause(
+    where_clause, sql_params = build_aggregated_where_clause(
         entity_id_field=entity_id_field,
         entity_id=entity_id,
         adjusted_start=adjusted_start,
@@ -859,7 +859,7 @@ def _build_entity_rollup_sql_query(
         start_date, end_date, timezone_offset_minutes, include_current_utc_day
     )
 
-    where_clause, sql_params = _build_aggregated_where_clause(
+    where_clause, sql_params = build_aggregated_where_clause(
         entity_id_field=entity_id_field,
         entity_id=entity_id,
         adjusted_start=adjusted_start,

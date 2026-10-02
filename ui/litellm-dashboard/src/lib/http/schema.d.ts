@@ -25477,7 +25477,10 @@ export interface components {
             avg_session_seconds: number;
             /** Avg Tokens Per Session */
             avg_tokens_per_session: number;
-            /** Avg Turns Per Session */
+            /**
+             * Avg Turns Per Session
+             * @description Lifetime turns per overlapping session
+             */
             avg_turns_per_session: number;
             /**
              * Baseline Spend
@@ -25506,13 +25509,8 @@ export interface components {
              */
             saved_pct: number | null;
             /**
-             * Saved Per Session
-             * @description Recorded savings per session, including historical estimates
-             */
-            saved_per_session: number | null;
-            /**
              * Saved Spend
-             * @description Recorded historical savings plus newer estimates; null when traffic has no recorded savings estimates
+             * @description Recorded savings on the selected UTC days; null when traffic has no recorded savings estimates. On totals this is the same daily figure the Overall savings view reports
              */
             saved_spend: number | null;
             /**
@@ -25530,11 +25528,14 @@ export interface components {
              * @description Requests compared against the baseline: every request on complexity routers that recorded savings
              */
             savings_estimated_turns: number;
-            /** Sessions */
+            /**
+             * Sessions
+             * @description Sessions overlapping the window, counted whole
+             */
             sessions: number;
             /**
              * Spend
-             * @description What the routed traffic actually cost
+             * @description What the selected days' routed traffic actually cost
              */
             spend: number;
             /**
@@ -25544,19 +25545,31 @@ export interface components {
             tier_turns?: {
                 [key: string]: number;
             };
-            /** Turns */
+            /**
+             * Turns
+             * @description Auto-routed requests on the selected UTC days
+             */
             turns: number;
+            /**
+             * Unattributed Saved Spend
+             * @description Part of saved_spend no router's daily rows account for, such as history recorded before per-router daily tracking; when set, baseline_spend and saved_pct are null
+             */
+            unattributed_saved_spend?: number | null;
         };
         /**
          * AutoRouterBenchmarkTotals
-         * @description Session-shape and savings aggregates over auto-routed traffic in the window.
+         * @description Auto-routed traffic in the window. Turns, spend and savings count requests on the selected UTC days;
+         *     the session averages and cache stats describe every session overlapping the window, whole.
          */
         AutoRouterBenchmarkTotals: {
             /** Avg Session Seconds */
             avg_session_seconds: number;
             /** Avg Tokens Per Session */
             avg_tokens_per_session: number;
-            /** Avg Turns Per Session */
+            /**
+             * Avg Turns Per Session
+             * @description Lifetime turns per overlapping session
+             */
             avg_turns_per_session: number;
             /**
              * Baseline Spend
@@ -25575,13 +25588,8 @@ export interface components {
              */
             saved_pct: number | null;
             /**
-             * Saved Per Session
-             * @description Recorded savings per session, including historical estimates
-             */
-            saved_per_session: number | null;
-            /**
              * Saved Spend
-             * @description Recorded historical savings plus newer estimates; null when traffic has no recorded savings estimates
+             * @description Recorded savings on the selected UTC days; null when traffic has no recorded savings estimates. On totals this is the same daily figure the Overall savings view reports
              */
             saved_spend: number | null;
             /**
@@ -25599,19 +25607,30 @@ export interface components {
              * @description Requests compared against the baseline: every request on complexity routers that recorded savings
              */
             savings_estimated_turns: number;
-            /** Sessions */
+            /**
+             * Sessions
+             * @description Sessions overlapping the window, counted whole
+             */
             sessions: number;
             /**
              * Spend
-             * @description What the routed traffic actually cost
+             * @description What the selected days' routed traffic actually cost
              */
             spend: number;
-            /** Turns */
+            /**
+             * Turns
+             * @description Auto-routed requests on the selected UTC days
+             */
             turns: number;
+            /**
+             * Unattributed Saved Spend
+             * @description Part of saved_spend no router's daily rows account for, such as history recorded before per-router daily tracking; when set, baseline_spend and saved_pct are null
+             */
+            unattributed_saved_spend?: number | null;
         };
         /**
          * AutoRouterBenchmarksResponse
-         * @description Benchmarks for the auto-router dashboard, aggregated from the per-session rollup.
+         * @description Benchmarks for the auto-router dashboard, aggregated from the per-session and per-day rollups.
          */
         AutoRouterBenchmarksResponse: {
             /**

@@ -26,7 +26,6 @@ const totalsOnly = {
   saved_spend: 1,
   baseline_spend: 2,
   saved_pct: 50,
-  saved_per_session: 0.33,
   cache: {
     coverage_pct: 0,
     hit_rate_pct: 0,
