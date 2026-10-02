@@ -34576,6 +34576,8 @@ export interface components {
             blocked_tools?: string[] | null;
             /** Mcp Access Groups */
             mcp_access_groups?: string[] | null;
+            /** Mcp Data Boundaries */
+            mcp_data_boundaries?: string[] | null;
             /** Mcp Servers */
             mcp_servers?: string[] | null;
             /** Mcp Tool Permissions */
@@ -34620,6 +34622,8 @@ export interface components {
              * @default []
              */
             mcp_access_groups: string[] | null;
+            /** Mcp Data Boundaries */
+            mcp_data_boundaries?: string[] | null;
             /**
              * Mcp Servers
              * @default []

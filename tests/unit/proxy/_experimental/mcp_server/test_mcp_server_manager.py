@@ -15580,3 +15580,149 @@ class TestToolCatalogGuard:
             proxy_logging_obj=proxy_logging_obj,
             server=server,
         )
+
+
+def _boundary_server(data_boundary: str | None) -> MCPServer:
+    return MCPServer(
+        server_id="crm_us",
+        name="crm_us",
+        url="https://crm.example.com/mcp",
+        transport=MCPTransport.http,
+        data_boundary=data_boundary,
+    )
+
+
+def _boundary_caller(mcp_data_boundaries: list[str] | None) -> UserAPIKeyAuth:
+    return UserAPIKeyAuth(
+        api_key="sk-boundary",
+        object_permission=LiteLLM_ObjectPermissionTable(
+            object_permission_id="op-boundary",
+            mcp_data_boundaries=mcp_data_boundaries,
+        ),
+    )
+
+
+def _admitting_proxy_logging() -> MagicMock:
+    proxy_logging_obj = MagicMock()
+    proxy_logging_obj._create_mcp_request_object_from_kwargs = MagicMock(return_value={})
+    proxy_logging_obj._convert_mcp_to_llm_format = MagicMock(return_value={})
+    proxy_logging_obj.pre_call_hook = AsyncMock(return_value={})
+    return proxy_logging_obj
+
+
+class TestMCPDataBoundaryPolicy:
+    @pytest.mark.asyncio
+    async def test_tool_call_into_server_outside_key_boundary_is_refused_with_reason(self):
+        manager = MCPServerManager()
+        proxy_logging_obj = _admitting_proxy_logging()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await manager.pre_call_tool_check(
+                name="fetch_record",
+                arguments={"record_id": "42"},
+                server_name="crm_us",
+                user_api_key_auth=_boundary_caller(["eu"]),
+                proxy_logging_obj=proxy_logging_obj,
+                server=_boundary_server("us-salesforce"),
+            )
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == {
+            "error": (
+                "MCP data boundary violation: server 'crm_us' is in data boundary 'us-salesforce', "
+                "but the key policy only permits data boundaries ['eu']. "
+                "Contact proxy admin to change the data boundary policy."
+            ),
+            "code": "mcp_data_boundary_violation",
+            "server_name": "crm_us",
+            "server_data_boundary": "us-salesforce",
+            "allowed_data_boundaries": ["eu"],
+            "policy_source": "key",
+        }
+        proxy_logging_obj.pre_call_hook.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "server_boundary,key_boundaries",
+        (("eu", ["eu"]), ("us-salesforce", None), ("us-salesforce", []), (None, None)),
+    )
+    async def test_tool_call_inside_boundary_or_without_policy_is_admitted(self, server_boundary, key_boundaries):
+        manager = MCPServerManager()
+        proxy_logging_obj = _admitting_proxy_logging()
+
+        await manager.pre_call_tool_check(
+            name="fetch_record",
+            arguments={"record_id": "42"},
+            server_name="crm_us",
+            user_api_key_auth=_boundary_caller(key_boundaries),
+            proxy_logging_obj=proxy_logging_obj,
+            server=_boundary_server(server_boundary),
+        )
+
+        proxy_logging_obj.pre_call_hook.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_team_boundary_is_enforced_when_key_sets_none(self):
+        manager = MCPServerManager()
+        team_permission = LiteLLM_ObjectPermissionTable(object_permission_id="op-team", mcp_data_boundaries=["eu"])
+
+        with (
+            patch(
+                "litellm.proxy._experimental.mcp_server.auth.user_api_key_auth_mcp.MCPRequestHandler._get_team_object_permission",
+                AsyncMock(return_value=team_permission),
+            ),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            await manager.check_data_boundary_for_key_team(
+                server=_boundary_server("us"),
+                user_api_key_auth=_boundary_caller(None),
+            )
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail["policy_source"] == "team"
+        assert exc_info.value.detail["allowed_data_boundaries"] == ["eu"]
+
+    @pytest.mark.asyncio
+    async def test_prompt_and_resource_reads_outside_boundary_never_reach_upstream(self):
+        manager = MCPServerManager()
+        create_client = AsyncMock()
+
+        with patch.object(manager, "_create_mcp_client", create_client):
+            with pytest.raises(HTTPException) as prompt_exc:
+                await manager.get_prompt_from_server(
+                    server=_boundary_server("us"),
+                    user_api_key_auth=_boundary_caller(["eu"]),
+                    prompt_name="summarize",
+                )
+            with pytest.raises(HTTPException) as resource_exc:
+                await manager.read_resource_from_server(
+                    server=_boundary_server("us"),
+                    user_api_key_auth=_boundary_caller(["eu"]),
+                    url=AnyUrl("records://latest"),
+                )
+
+        assert prompt_exc.value.detail["code"] == "mcp_data_boundary_violation"
+        assert resource_exc.value.detail["code"] == "mcp_data_boundary_violation"
+        create_client.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_data_boundary_is_loaded_from_config_and_database(self, config_only_mcp_manager_factory):
+        manager = config_only_mcp_manager_factory()
+        await manager.load_servers_from_config(
+            {"crm_us": {"url": "https://crm.example.com/mcp", "transport": MCPTransport.http, "data_boundary": "us"}}
+        )
+        row = LiteLLM_MCPServerTable(
+            server_id="docs-eu",
+            alias="docs_eu",
+            url="https://docs.example.com/mcp",
+            transport=MCPTransport.http,
+            data_boundary="eu",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+
+        from_db = await manager.build_mcp_server_from_table(row, credentials_are_encrypted=False)
+
+        assert [server.data_boundary for server in manager.config_mcp_servers.values()] == ["us"]
+        assert from_db.data_boundary == "eu"
+        assert manager._build_mcp_server_table(from_db).data_boundary == "eu"
